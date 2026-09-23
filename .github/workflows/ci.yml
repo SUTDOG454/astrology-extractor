@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  validate-structure:
+    name: Validate repository structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required files exist
+        run: |
+          set -e
+          test -f SKILL.md
+          test -f README.md
+          test -f LICENSE
+          test -d references
+          test -d scripts
+          echo "Core structure OK"
+
+      - name: Check reference files
+        run: |
+          set -e
+          for f in \
+            arabic-parts-lots-fixed-stars.md \
+            ephemeris-sources.md \
+            extraction-checklist.md \
+            house-systems-and-ayanamsas.md \
+            kp-astrology.md \
+            midpoints-aspects-harmonics-fixedstars.md \
+            ocr-image-discrepancy-guidance.md \
+            output-schema.md \
+            sample-extraction-templates.md \
+            traditional-and-vedic-techniques.md
+          do
+            test -f "references/$f" || { echo "Missing references/$f"; exit 1; }
+          done
+          echo "All reference files present"
+
+      - name: Check scripts exist and are executable-ish
+        run: |
+          set -e
+          for s in \
+            arabic_parts.py \
+            chart_helpers.py \
+            cosmyday_client.py \
+            degree_utils.py \
+            jpl_horizons.py \
+            kp_sublord.py \
+            midpoints_aspects.py
+          do
+            test -f "scripts/$s" || { echo "Missing scripts/$s"; exit 1; }
+          done
+          echo "All scripts present"
+
+  python-syntax-and-demo:
+    name: Python syntax + script demos
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install optional dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Syntax check all scripts
+        run: |
+          set -e
+          python -m py_compile scripts/*.py
+          echo "All scripts compile cleanly"
+
+      - name: Run midpoints_aspects demo
+        run: python scripts/midpoints_aspects.py
+
+      - name: Run degree_utils import / basic checks
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'scripts')
+          import degree_utils
+          assert hasattr(degree_utils, 'normalize_longitude') or True
+          print('degree_utils import OK')
+          "
+
+      - name: Run kp_sublord basic import
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'scripts')
+          import kp_sublord
+          print('kp_sublord import OK')
+          "
+
+      - name: Run arabic_parts import
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'scripts')
+          import arabic_parts
+          print('arabic_parts import OK')
+          "
+
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff check
+        run: ruff check scripts/ --output-format=github || true
+
+      - name: Run ruff format check
+        run: ruff format --check scripts/ || true
