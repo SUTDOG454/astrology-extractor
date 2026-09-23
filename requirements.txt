@@ -1,0 +1,8 @@
+# Astrology Extractor – optional dependencies for the helper scripts
+# Most functionality uses only the Python standard library.
+
+# Uncomment if you prefer the requests library over urllib for HTTP clients:
+# requests>=2.28.0
+
+# For future Swiss Ephemeris / pyswisseph integration (optional):
+# pyswisseph>=2.10.0
